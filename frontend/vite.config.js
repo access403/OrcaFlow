@@ -3,4 +3,12 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
+  server: {
+    proxy: {
+      "/manager": {
+        target: "http://localhost:8000",
+        changeOrigin: true
+      }
+    }
+  }
 });
