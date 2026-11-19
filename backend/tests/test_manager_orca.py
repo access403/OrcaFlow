@@ -38,7 +38,7 @@ def test_manager_rejects_empty_task() -> None:
 
 def test_manager_uses_injected_classifier() -> None:
     class FixedClassifier:
-        def classify(self, task: str) -> TaskType:
+        def classify(self, _task: str) -> TaskType:
             return "research"
 
     result = ManagerOrca(classifier=FixedClassifier()).invoke(

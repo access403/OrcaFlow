@@ -50,7 +50,16 @@ class KeywordTaskClassifier:
             }
         ),
         "analysis": frozenset(
-            {"analyze", "analyse", "evaluate", "compare", "assess", "summarize", "explain", "review"}
+            {
+                "analyze",
+                "analyse",
+                "evaluate",
+                "compare",
+                "assess",
+                "summarize",
+                "explain",
+                "review",
+            }
         ),
     }
     _TIE_BREAK_ORDER: tuple[TaskType, ...] = ("development", "research", "analysis")
