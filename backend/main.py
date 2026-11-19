@@ -18,7 +18,7 @@ def create_app(
     app = FastAPI(title=app_settings.app_name)
     app.state.settings = app_settings
     app.state.database = database or SQLiteDatabase(app_settings.database_path)
-    app.state.manager = manager or ManagerOrca()
+    app.state.manager = manager if manager is not None else ManagerOrca()
     app.include_router(api_router)
     return app
 

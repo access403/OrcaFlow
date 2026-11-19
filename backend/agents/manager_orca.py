@@ -1,10 +1,11 @@
 """LangGraph workflow for classifying tasks and selecting an agent."""
 
 import re
-from typing import Literal, NotRequired, Protocol, TypedDict
+from typing import Literal, Protocol, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel
+from typing_extensions import NotRequired
 
 TaskType = Literal["research", "development", "analysis"]
 AgentName = Literal["ResearchOrca", "DeveloperOrca", "AnalystOrca"]
@@ -18,14 +19,35 @@ class TaskClassifier(Protocol):
 
 
 class KeywordTaskClassifier:
-    """Classify tasks using configurable, deterministic keyword matching."""
+    """Classify by keywords; ties prefer development, then research, then analysis.
+
+    Tasks without a matching keyword are classified as analysis.
+    """
 
     _KEYWORDS: dict[TaskType, frozenset[str]] = {
         "research": frozenset(
-            {"research", "investigate", "explore", "source", "citation", "find", "search", "survey"}
+            {
+                "research",
+                "investigate",
+                "explore",
+                "source",
+                "citation",
+                "find",
+                "search",
+                "survey",
+            }
         ),
         "development": frozenset(
-            {"implement", "build", "code", "develop", "fix", "refactor", "create", "debug"}
+            {
+                "implement",
+                "build",
+                "code",
+                "develop",
+                "fix",
+                "refactor",
+                "create",
+                "debug",
+            }
         ),
         "analysis": frozenset(
             {"analyze", "analyse", "evaluate", "compare", "assess", "summarize", "explain", "review"}
@@ -66,7 +88,9 @@ class ManagerOrca:
     """Classify a task and produce an execution plan using a LangGraph workflow."""
 
     def __init__(self, classifier: TaskClassifier | None = None) -> None:
-        self._classifier = classifier or KeywordTaskClassifier()
+        self._classifier = (
+            classifier if classifier is not None else KeywordTaskClassifier()
+        )
         self._graph = self._build_graph()
 
     def invoke(self, task: str) -> ManagerResult:
