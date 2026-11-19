@@ -8,6 +8,7 @@ from fastapi import Depends, Request
 
 from backend.agents.manager_orca import ManagerOrca
 from backend.database.database import SQLiteDatabase
+from backend.providers.freellmapi import FreeLLMAPIProvider
 from backend.settings import Settings
 
 
@@ -19,6 +20,11 @@ def get_manager(request: Request) -> ManagerOrca:
 def get_settings(request: Request) -> Settings:
     """Retrieve application settings from the app container."""
     return request.app.state.settings
+
+
+def get_freellmapi(request: Request) -> FreeLLMAPIProvider:
+    """Retrieve the configured FreeLLMAPI provider."""
+    return request.app.state.freellmapi
 
 
 def get_database(request: Request) -> SQLiteDatabase:

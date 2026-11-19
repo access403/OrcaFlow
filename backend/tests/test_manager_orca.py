@@ -1,8 +1,13 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from backend.agents.manager_orca import ManagerOrca, TaskType
+from backend.agents.manager_orca import (
+    FreeLLMTaskClassifier,
+    ManagerOrca,
+    TaskType,
+)
 from backend.main import create_app
+from backend.providers.freellmapi import FreeLLMAPIError, FreeLLMAPIProvider
 
 
 @pytest.mark.parametrize(
@@ -75,3 +80,66 @@ def test_manager_api_rejects_blank_task() -> None:
     response = client.post("/manager/tasks", json={"task": "  "})
 
     assert response.status_code == 422
+
+
+def test_free_llm_classifier_routes_llm_category() -> None:
+    class FixedProvider:
+        def complete(self, _prompt: str) -> str:
+            return "development"
+
+    classifier = FreeLLMTaskClassifier(FixedProvider())
+
+    assert classifier.classify("Create a new API") == "development"
+
+
+def test_free_llm_classifier_falls_back_on_provider_error() -> None:
+    class FailingProvider:
+        def complete(self, _prompt: str) -> str:
+            raise FreeLLMAPIError("provider unavailable")
+
+    classifier = FreeLLMTaskClassifier(FailingProvider())
+
+    assert classifier.classify("Research renewable energy") == "research"
+    assert classifier.classify("Implement an API endpoint") == "development"
+
+
+def test_free_llm_classifier_falls_back_on_invalid_category() -> None:
+    class InvalidProvider:
+        def complete(self, _prompt: str) -> str:
+            return "not a valid category"
+
+    classifier = FreeLLMTaskClassifier(InvalidProvider())
+
+    assert classifier.classify("Compare these approaches") == "analysis"
+
+
+def test_manager_api_uses_free_llm_provider() -> None:
+    provider = FreeLLMAPIProvider(
+        base_url="https://example.test/v1",
+        api_key="test-key",
+        model="test-model",
+        post=lambda *_args, **_kwargs: FakeProviderResponse(
+            {"choices": [{"message": {"content": "research"}}]}
+        ),
+    )
+    client = TestClient(create_app(freellmapi=provider))
+
+    response = client.post(
+        "/manager/tasks",
+        json={"task": "Investigate energy storage"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["task_type"] == "research"
+    assert response.json()["selected_agent"] == "ResearchOrca"
+
+
+class FakeProviderResponse:
+    def raise_for_status(self) -> None:
+        pass
+
+    def __init__(self, data: dict[str, object]) -> None:
+        self._data = data
+
+    def json(self) -> dict[str, object]:
+        return self._data

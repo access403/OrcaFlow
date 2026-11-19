@@ -7,6 +7,8 @@ from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel
 from typing_extensions import NotRequired
 
+from backend.providers.freellmapi import FreeLLMAPIError, FreeLLMAPIProvider
+
 TaskType = Literal["research", "development", "analysis"]
 AgentName = Literal["ResearchOrca", "DeveloperOrca", "AnalystOrca"]
 
@@ -80,6 +82,36 @@ class KeywordTaskClassifier:
         )
 
 
+class FreeLLMTaskClassifier:
+    """Classify tasks with FreeLLMAPI and fall back to rule-based routing."""
+
+    def __init__(
+        self,
+        provider: FreeLLMAPIProvider,
+        fallback: TaskClassifier | None = None,
+    ) -> None:
+        self._provider = provider
+        self._fallback = fallback or KeywordTaskClassifier()
+
+    def classify(self, task: str) -> TaskType:
+        prompt = (
+            "Classify the following task into exactly one category: "
+            "research, development, or analysis.\n"
+            "Return only the category name.\n\n"
+            f"Task: {task}"
+        )
+        try:
+            response = self._provider.complete(prompt)
+        except FreeLLMAPIError:
+            return self._fallback.classify(task)
+
+        normalized = response.strip().strip("\"'.").casefold()
+        for task_type in ("research", "development", "analysis"):
+            if re.fullmatch(rf"{task_type}[.!]?\"?", normalized):
+                return task_type
+        return self._fallback.classify(task)
+
+
 class ManagerState(TypedDict):
     task: str
     task_type: NotRequired[TaskType]
@@ -96,9 +128,23 @@ class ManagerResult(BaseModel):
 class ManagerOrca:
     """Classify a task and produce an execution plan using a LangGraph workflow."""
 
-    def __init__(self, classifier: TaskClassifier | None = None) -> None:
+    def __init__(
+        self,
+        classifier: TaskClassifier | None = None,
+        provider: FreeLLMAPIProvider | None = None,
+    ) -> None:
+        fallback = KeywordTaskClassifier()
+        if classifier is not None:
+            selected_classifier = classifier
+        elif provider is not None:
+            selected_classifier = FreeLLMTaskClassifier(provider, fallback)
+        else:
+            selected_classifier = FreeLLMTaskClassifier(
+                FreeLLMAPIProvider(),
+                fallback,
+            )
         self._classifier = (
-            classifier if classifier is not None else KeywordTaskClassifier()
+            selected_classifier
         )
         self._graph = self._build_graph()
 
